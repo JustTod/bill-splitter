@@ -15,6 +15,7 @@ interface Person {
 }
 
 type Sharing = Record<number, Record<number, boolean>>;
+type FixedPay = Record<number, number | null>;
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
@@ -39,6 +40,7 @@ export default function BillSplitter() {
   ]);
   const [persons, setPersons] = useState<Person[]>([]);
   const [sharing, setSharing] = useState<Sharing>({ 1: {}, 2: {} });
+  const [fixedPay, setFixedPay] = useState<FixedPay>({});
   const [nextItemId, setNextItemId] = useState(3);
   const [nextPersonId, setNextPersonId] = useState(1);
 
@@ -113,6 +115,11 @@ export default function BillSplitter() {
       });
       return next;
     });
+    setFixedPay(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   }
 
   function updatePersonName(id: number, name: string) {
@@ -123,6 +130,14 @@ export default function BillSplitter() {
     setSharing(prev => ({
       ...prev,
       [itemId]: { ...prev[itemId], [personId]: !prev[itemId]?.[personId] },
+    }));
+  }
+
+  function updateFixedPay(personId: number, value: string) {
+    const num = parseFloat(value);
+    setFixedPay(prev => ({
+      ...prev,
+      [personId]: value === '' || isNaN(num) ? null : num,
     }));
   }
 
@@ -140,9 +155,9 @@ export default function BillSplitter() {
   totalVat = round2(totalVat);
   totalGrand = round2(totalGrand);
 
-  // Split calc (derived)
-  const personTotals: Record<number, number> = {};
-  persons.forEach(p => { personTotals[p.id] = 0; });
+  // Step 1: Natural shares per person
+  const naturalShares: Record<number, number> = {};
+  persons.forEach(p => { naturalShares[p.id] = 0; });
   items.forEach(item => {
     const { grand } = calcItem(item, sc, vat);
     const itemSharing = sharing[item.id] || {};
@@ -154,12 +169,37 @@ export default function BillSplitter() {
       const amt = idx === sharers.length - 1
         ? round2(grand - distributed)
         : round2(grand / sharers.length);
-      personTotals[p.id] = round2((personTotals[p.id] || 0) + amt);
-      distributed += amt;
+      naturalShares[p.id] = round2((naturalShares[p.id] || 0) + amt);
+      distributed = round2(distributed + amt);
     });
   });
 
-  const calcTotal = round2(Object.values(personTotals).reduce((a, b) => a + b, 0));
+  // Steps 2-4: Apply fixed pay
+  const fixedPersons = persons.filter(p => fixedPay[p.id] != null);
+  const floatingPersons = persons.filter(p => fixedPay[p.id] == null);
+  const totalFixed = round2(fixedPersons.reduce((sum, p) => sum + (fixedPay[p.id] ?? 0), 0));
+  const remaining = round2(totalGrand - totalFixed);
+  const floatingNaturalTotal = round2(floatingPersons.reduce((sum, p) => sum + (naturalShares[p.id] || 0), 0));
+
+  const personTotals: Record<number, number> = {};
+  fixedPersons.forEach(p => { personTotals[p.id] = round2(fixedPay[p.id] ?? 0); });
+  let distributedFloating = 0;
+  floatingPersons.forEach((p, idx) => {
+    let amt: number;
+    if (floatingNaturalTotal === 0 || floatingPersons.length === 0) {
+      amt = idx === floatingPersons.length - 1
+        ? round2(remaining - distributedFloating)
+        : round2(remaining / Math.max(1, floatingPersons.length));
+    } else {
+      amt = idx === floatingPersons.length - 1
+        ? round2(remaining - distributedFloating)
+        : round2(remaining * ((naturalShares[p.id] || 0) / floatingNaturalTotal));
+    }
+    personTotals[p.id] = amt;
+    distributedFloating = round2(distributedFloating + amt);
+  });
+
+  const totalCollected = round2(Object.values(personTotals).reduce((a, b) => a + b, 0));
   const extraCols = (scEnabled ? 1 : 0) + (vatEnabled ? 1 : 0);
 
   return (
@@ -375,16 +415,30 @@ export default function BillSplitter() {
             <div className="empty-state"><div className="icon">👤</div>Add people to split</div>
           ) : (
             <>
-              {persons.map(p => (
-                <div key={p.id} className="result-card">
-                  <div className="name">{p.name || `Person ${p.id}`}</div>
-                  <div className="amount">{fmt(personTotals[p.id] || 0)}</div>
-                </div>
-              ))}
-              <div className="result-card" style={{ borderStyle: 'dashed', opacity: 0.6 }}>
+              {persons.map(p => {
+                const isFixed = fixedPay[p.id] != null;
+                return (
+                  <div key={p.id} className="result-card">
+                    <div className="name">{p.name || `Person ${p.id}`}</div>
+                    <div className="amount">{fmt(personTotals[p.id] ?? 0)}</div>
+                    {isFixed && (
+                      <div className="detail">fixed · fair share: {fmt(naturalShares[p.id] || 0)}</div>
+                    )}
+                    <input
+                      type="number"
+                      className="fixed-pay-input"
+                      placeholder="Fixed pay…"
+                      value={fixedPay[p.id] ?? ''}
+                      min={0} step={0.01}
+                      onChange={e => updateFixedPay(p.id, e.target.value)}
+                    />
+                  </div>
+                );
+              })}
+              <div className="result-card bill-total-card">
                 <div className="name">Bill Total</div>
                 <div className="amount" style={{ color: 'var(--accent2)' }}>{fmt(totalGrand)}</div>
-                <div className="detail">sum of all: {fmt(calcTotal)}</div>
+                <div className="detail">collected: {fmt(totalCollected)}</div>
               </div>
             </>
           )}

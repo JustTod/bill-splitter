@@ -222,6 +222,7 @@ input[type=number].item-input.qty { width: 48px; }
   transition: border-color .2s;
 }
 .result-card:hover { border-color: var(--accent); }
+.result-card.bill-total-card { border-style: dashed; opacity: 0.7; }
 .result-card .name {
   font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px;
   color: var(--muted); text-transform: uppercase;
@@ -229,9 +230,20 @@ input[type=number].item-input.qty { width: 48px; }
 }
 .result-card .amount {
   font-size: 1.15rem; font-weight: 500;
-  color: var(--accent);
+  color: var(--accent); font-family: var(--font-dm-mono), monospace;
 }
-.result-card .detail { font-size: 0.68rem; color: var(--muted); }
+.result-card .detail { font-size: 0.68rem; color: var(--muted); font-family: var(--font-dm-mono), monospace; }
+
+.fixed-pay-input {
+  margin-top: 6px;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--accent2); border-radius: 8px;
+  padding: 5px 8px; font-size: 0.78rem; width: 100%; outline: none;
+  font-family: var(--font-dm-mono), monospace;
+  transition: border-color .15s;
+}
+.fixed-pay-input:focus { border-color: var(--accent2); }
+.fixed-pay-input::placeholder { color: var(--muted); }
 
 /* TOTALS BAR */
 .totals-bar {
