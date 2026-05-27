@@ -17,6 +17,41 @@ interface Person {
 type Sharing = Record<number, Record<number, boolean>>;
 type FixedPay = Record<number, number | null>;
 
+interface SavedState {
+  items: Item[];
+  persons: Person[];
+  sharing: Sharing;
+  fixedPay: FixedPay;
+  nextItemId: number;
+  nextPersonId: number;
+  scEnabled: boolean;
+  scPct: number;
+  vatEnabled: boolean;
+  vatPct: number;
+}
+
+interface SaveEntry {
+  id: string;
+  name: string;
+  savedAt: number;
+  state: SavedState;
+}
+
+const SAVES_KEY = 'billSplitter_saves';
+
+function loadSavesFromStorage(): SaveEntry[] {
+  try { return JSON.parse(localStorage.getItem(SAVES_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function persistSavesToStorage(saves: SaveEntry[]) {
+  localStorage.setItem(SAVES_KEY, JSON.stringify(saves));
+}
+
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
 function round2(n: number) {
   return Math.round(n * 100) / 100;
 }
@@ -52,12 +87,58 @@ export default function BillSplitter() {
   const [focusItemId, setFocusItemId] = useState<number | null>(null);
   const nameInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
+  const [saves, setSaves] = useState<SaveEntry[]>([]);
+  const [selectedSaveId, setSelectedSaveId] = useState('');
+
+  useEffect(() => { setSaves(loadSavesFromStorage()); }, []);
+
   useEffect(() => {
     if (focusItemId !== null) {
       nameInputRefs.current[focusItemId]?.focus();
       setFocusItemId(null);
     }
   }, [focusItemId]);
+
+  function handleSave() {
+    const name = new Date().toLocaleString('en-US', {
+      month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit',
+    });
+    const entry: SaveEntry = {
+      id: genId(), name, savedAt: Date.now(),
+      state: { items, persons, sharing, fixedPay, nextItemId, nextPersonId, scEnabled, scPct, vatEnabled, vatPct },
+    };
+    const updated = [...saves, entry];
+    setSaves(updated);
+    persistSavesToStorage(updated);
+    setSelectedSaveId(entry.id);
+  }
+
+  function handleSelectSave(id: string) {
+    setSelectedSaveId(id);
+    if (!id) return;
+    const entry = saves.find(s => s.id === id);
+    if (!entry) return;
+    const s = entry.state;
+    setItems(s.items);
+    setPersons(s.persons);
+    setSharing(s.sharing);
+    setFixedPay(s.fixedPay);
+    setNextItemId(s.nextItemId);
+    setNextPersonId(s.nextPersonId);
+    setScEnabled(s.scEnabled);
+    setScPct(s.scPct);
+    setVatEnabled(s.vatEnabled);
+    setVatPct(s.vatPct);
+  }
+
+  function handleDeleteSave() {
+    if (!selectedSaveId) return;
+    const updated = saves.filter(s => s.id !== selectedSaveId);
+    setSaves(updated);
+    persistSavesToStorage(updated);
+    setSelectedSaveId('');
+  }
 
   const sc = scEnabled ? scPct / 100 : 0;
   const vat = vatEnabled ? vatPct / 100 : 0;
@@ -205,9 +286,27 @@ export default function BillSplitter() {
   return (
     <>
       <header>
-        <div>
+        <div className="header-title">
           <h1>🧾 Bill Splitter</h1>
           <div className="subtitle">split fair, pay easy</div>
+        </div>
+        <div className="saves-bar">
+          <select
+            className="saves-select"
+            value={selectedSaveId}
+            onChange={e => handleSelectSave(e.target.value)}
+          >
+            <option value="">— saves —</option>
+            {saves.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+          <button className="save-btn" onClick={handleSave}>Save</button>
+          <button
+            className="del-save-btn"
+            onClick={handleDeleteSave}
+            disabled={!selectedSaveId}
+          >Delete</button>
         </div>
       </header>
 
