@@ -89,6 +89,7 @@ export default function BillSplitter() {
 
   const [saves, setSaves] = useState<SaveEntry[]>([]);
   const [selectedSaveId, setSelectedSaveId] = useState('');
+  const [saveName, setSaveName] = useState('');
 
   useEffect(() => { setSaves(loadSavesFromStorage()); }, []);
 
@@ -100,18 +101,21 @@ export default function BillSplitter() {
   }, [focusItemId]);
 
   function handleSave() {
-    const name = new Date().toLocaleString('en-US', {
+    const fallback = new Date().toLocaleString('en-US', {
       month: 'short', day: 'numeric',
       hour: 'numeric', minute: '2-digit',
     });
     const entry: SaveEntry = {
-      id: genId(), name, savedAt: Date.now(),
+      id: genId(),
+      name: saveName.trim() || fallback,
+      savedAt: Date.now(),
       state: { items, persons, sharing, fixedPay, nextItemId, nextPersonId, scEnabled, scPct, vatEnabled, vatPct },
     };
     const updated = [...saves, entry];
     setSaves(updated);
     persistSavesToStorage(updated);
     setSelectedSaveId(entry.id);
+    setSaveName('');
   }
 
   function handleSelectSave(id: string) {
@@ -301,6 +305,15 @@ export default function BillSplitter() {
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
+          <input
+            type="text"
+            className="save-name-input"
+            placeholder="Save name…"
+            value={saveName}
+            maxLength={32}
+            onChange={e => setSaveName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleSave(); }}
+          />
           <button className="save-btn" onClick={handleSave}>Save</button>
           <button
             className="del-save-btn"

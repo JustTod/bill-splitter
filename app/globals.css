@@ -68,6 +68,17 @@ header .subtitle { font-size: 0.75rem; color: var(--muted); }
 }
 .saves-select:focus { border-color: var(--accent); }
 
+.save-name-input {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); border-radius: 8px;
+  padding: 5px 8px; font-size: 0.75rem;
+  font-family: var(--font-syne), sans-serif;
+  width: 120px; outline: none;
+  transition: border-color .15s;
+}
+.save-name-input:focus { border-color: var(--accent); }
+.save-name-input::placeholder { color: var(--muted); }
+
 .save-btn {
   background: var(--accent); color: #000; border: none;
   border-radius: 8px; padding: 6px 14px;
